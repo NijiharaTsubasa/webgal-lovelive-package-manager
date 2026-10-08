@@ -2,6 +2,7 @@ import { test, expect, chromium } from '@playwright/test';
 import { dirname, join } from 'node:path';
 import { createServer } from 'node:net';
 import { spawn } from 'node:child_process';
+import { stat } from 'node:fs/promises';
 
 test('packaged portable executable reads games and configuration beside the outer exe', async () => {
   const executablePath = process.env.PACKAGE_MANAGER_PORTABLE_EXE;
@@ -28,7 +29,9 @@ test('packaged portable executable reads games and configuration beside the oute
     const page = browser.contexts()[0].pages()[0];
     await expect(page.getByRole('heading', { name: '选择要管理资源的工程' })).toBeVisible();
     const directory = dirname(executablePath!);
-    expect(await page.evaluate(async () => (await window.packageManager!.listProjects()).gamesRoot)).toBe(join(directory, 'games'));
+    const portableGames = join(directory, 'data', 'games');
+    const hasPortableGames = await stat(portableGames).then(info => info.isDirectory(), () => false);
+    expect(await page.evaluate(async () => (await window.packageManager!.listProjects()).gamesRoot)).toBe(hasPortableGames ? portableGames : join(directory, 'public', 'games'));
     // 请求失败时也应来自 EXE 同级配置所指定的清单，而不是缺失临时目录中的配置文件。
     const result = await page.evaluate(async () => {
       try { return { count: (await window.packageManager!.listModels()).length }; }

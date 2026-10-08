@@ -19,6 +19,15 @@ async function gameRoot(gamesRoot, id) {
   if (!(await fs.stat(realGame)).isDirectory()) throw Error('工程缺少 game 目录');
   return realGame;
 }
+async function findGamesRoot(applicationDirectory) {
+  const portableRoot = path.join(applicationDirectory, 'data', 'games');
+  try {
+    if ((await fs.stat(portableRoot)).isDirectory()) return portableRoot;
+  } catch (error) {
+    if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error;
+  }
+  return path.join(applicationDirectory, 'public', 'games');
+}
 async function listProjects(gamesRoot) {
   let entries;
   try { entries = await fs.readdir(gamesRoot, { withFileTypes: true }); }
@@ -101,4 +110,4 @@ async function checkInstalledAt(root, entries) {
 async function checkInstalled(gamesRoot, id, entries) {
   return checkInstalledAt(await gameRoot(gamesRoot, id), entries);
 }
-module.exports = { listProjects, readProject, checkInstalled, checkInstalledAt };
+module.exports = { findGamesRoot, listProjects, readProject, checkInstalled, checkInstalledAt };

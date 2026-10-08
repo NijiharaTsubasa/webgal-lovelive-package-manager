@@ -1,6 +1,6 @@
 const { app, BrowserWindow, session, ipcMain, dialog } = require('electron');
 const path = require('node:path');
-const { listProjects, readProject, checkInstalledAt } = require('./projects.cjs');
+const { findGamesRoot, listProjects, readProject, checkInstalledAt } = require('./projects.cjs');
 const { installModel } = require('./model-installer.cjs');
 const { installResource } = require('./resource-installer.cjs');
 const { readCatalogConfig } = require('./catalog-config.cjs');
@@ -14,7 +14,7 @@ const resources = new Map();
 const installing = new Set();
 const gamesRoot = process.env.PACKAGE_MANAGER_TEST === '1' && process.env.PACKAGE_MANAGER_TEST_GAMES_ROOT
   ? process.env.PACKAGE_MANAGER_TEST_GAMES_ROOT
-  : path.join(applicationDirectory, 'games');
+  : null;
 
 function createWindow() {
   const window = new BrowserWindow({
@@ -51,7 +51,7 @@ app.whenReady().then(async () => {
   }
   handle('projects:list', async event => {
     verifySender(event);
-    const result = await listProjects(gamesRoot);
+    const result = await listProjects(gamesRoot ?? await findGamesRoot(applicationDirectory));
     result.projects.forEach(project => projects.set(project.id, project));
     return result;
   });

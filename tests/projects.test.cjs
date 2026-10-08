@@ -3,7 +3,21 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs/promises');
 const os = require('node:os');
 const path = require('node:path');
-const { listProjects, readProject, checkInstalled } = require('../electron/projects.cjs');
+const { findGamesRoot, listProjects, readProject, checkInstalled } = require('../electron/projects.cjs');
+
+test('prefers data/games and falls back to public/games only when absent', async () => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'package-manager-roots-'));
+  try {
+    const portable = path.join(temporary, 'data', 'games');
+    const legacy = path.join(temporary, 'public', 'games');
+    assert.equal(await findGamesRoot(temporary), legacy);
+    assert.deepEqual((await listProjects(await findGamesRoot(temporary))).projects, []);
+    await fs.mkdir(legacy, { recursive: true });
+    assert.equal(await findGamesRoot(temporary), legacy);
+    await fs.mkdir(portable, { recursive: true });
+    assert.equal(await findGamesRoot(temporary), portable);
+  } finally { await fs.rm(temporary, { recursive: true, force: true }); }
+});
 
 test('discovers immediate projects and checks only existence or nonempty directory', async () => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'package-manager-projects-'));

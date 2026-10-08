@@ -4,7 +4,7 @@ Electron 桌面应用，用于浏览、下载和安装模型、动作、表情�
 
 ## 选择工程
 
-启动后可从应用目录下的 `games` 选择工程，或点击“浏览本地目录”选择任意位置的工程。工程根目录需包含 `webgal-engine.json`；选择其下的 `game` 目录也可识别。顶部可切换工程或刷新安装状态。开发时应用目录为项目目录，打包后为可执行文件所在目录。
+启动后优先从应用目录下的 `data/games` 选择工程；该目录不存在时读取 `public/games`。也可点击“浏览本地目录”选择任意位置的工程。工程根目录需包含 `webgal-engine.json`；选择其下的 `game` 目录也可识别。顶部可切换工程或刷新安装状态。开发时应用目录为项目目录，打包后为可执行文件所在目录。
 
 引擎 ID 为 `webgal-lovelive.lovelive` 时显示全部资源页签；其他引擎只显示“其他”页签。
 
@@ -51,7 +51,7 @@ npm start
 npm run pack:win
 ```
 
-生成的 `release/WebGAL-LoveLive-Package-Manager.exe` 是免安装的单文件程序。将它与 `release/package-manager.config.json` 放到 Terre 主程序同级目录即可运行，也可放在其他目录并浏览选择工程。程序从该 EXE 所在目录读取配置文件和 `games`。
+生成的 `release/WebGAL-LoveLive-Package-Manager.exe` 是免安装的单文件程序。将它与 `release/package-manager.config.json` 放到 Terre 主程序同级目录即可运行，也可放在其他目录并浏览选择工程。程序从该 EXE 所在目录读取配置文件，优先查找 `data/games`，目录不存在时查找 `public/games`。
 
 打包时会将项目根目录的 `package-manager.config.json` 复制到 `release`。分发时一并提供上述 EXE 和配置文件。
 
