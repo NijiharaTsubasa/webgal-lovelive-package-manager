@@ -1,0 +1,7 @@
+[
+  { "type": "motion", "name": "莲之空活动记录动作包", "description": "莲之空活动记录3D动作\n（下载大小：约488MB，解压大小：约1GB）", "installPath": "3d/motion/hasunosora", "checkPath": "3d/motion/hasunosora", "url": "/others/hasunosora_motions.zip", "preview": "/others/hasunosora_motions.png" }
+  { "type": "live2d_mot_exp", "name": "MyGO_Mujica动作与表情包", "description": "经典的WebGAL_MyGO内置动作与表情", "installPath": "3d/mtn_exp", "checkPath": "3d/mtn_exp/anon/angry01.exp.json", "url": "/others/mygo_mujica_mtn_exp.zip", "preview": "/others/mygo_mtn_exp_3d.png" },
+  { "type": "background", "name": "LLAS背景包", "description": "LoveLive! All Stars 手游解包背景", "installPath": "background/llas", "checkPath": "background/llas", "url": "/others/llas_bg.zip", "preview": "/others/llas_bg.jpg"  },
+  { "type": "bgm", "name": "LLAS剧情音乐包", "description": "LoveLive! All Stars 手游解包剧情背景音乐", "installPath": "bgm/llas", "checkPath": "bgm/llas", "url": "/others/llas_story_bgm.zip" },
+  { "type": "figure", "name": "MyGO_Mujica Live2D立绘包", "description": "WebGAL_MyGO内置MyGO_Mujica Live2D立绘包", "installPath": "figure", "checkPath": "figure/anon/.mtn_exp/model.json", "url": "/others/mygo_mujica_live2d_figure.zip" }
+]

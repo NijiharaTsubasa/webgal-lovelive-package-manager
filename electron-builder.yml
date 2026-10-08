@@ -1,0 +1,13 @@
+appId: webgal-lovelive.package-manager
+productName: WebGAL-LoveLive-Package-Manager
+directories:
+  output: release
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+win:
+  target: portable
+  icon: build/icon.ico
+portable:
+  artifactName: WebGAL-LoveLive-Package-Manager.exe

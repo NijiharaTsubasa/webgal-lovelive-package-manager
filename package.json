@@ -1,0 +1,35 @@
+{
+  "name": "webgal-lovelive-package-manager",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "dev:web": "vite --host 127.0.0.1",
+    "build": "tsc --noEmit && vite build",
+    "pack:win": "npm run build && electron-builder --win portable --x64 && node scripts/copy-release-config.mjs",
+    "start": "electron .",
+    "test": "node --test tests/catalog.test.ts tests/projects.test.cjs tests/download.test.cjs tests/config.test.cjs",
+    "test:electron": "playwright test"
+  },
+  "engines": {
+    "node": ">=22.18"
+  },
+  "dependencies": {
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "yauzl": "^3.4.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.63.0",
+    "@types/react": "19.3.0",
+    "@types/react-dom": "19.3.0",
+    "@vitejs/plugin-react": "6.1.2",
+    "electron": "44.6.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "5.9.3",
+    "vite": "8.3.3",
+    "yazl": "^3.3.1"
+  }
+}
