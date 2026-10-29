@@ -109,7 +109,7 @@ async function installModel(gameRoot, model, overwrite, progress = () => {}) {
   const root = await fs.realpath(gameRoot);
   const parts = model.path.split('/');
   const parent = await safeParent(root, `3d/figure/${parts.slice(0, -1).join('/')}`);
-  const target = path.join(parent, parts[2]);
+  const target = path.join(parent, parts.at(-1));
   let exists = false;
   try {
     const stat = await fs.lstat(target);

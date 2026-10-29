@@ -27,6 +27,19 @@ test('search includes readable description and character directory', () => {
   assert.equal(matchesSearch(fixtures[0], '璃奈'), true);
   assert.equal(matchesSearch(fixtures[0], '校服'), false);
 });
+
+test('band folders and monthly costumes coexist in the model tree', () => {
+  const paths = ["BanG Dream/01Poppin'Party/01户山香澄/001_cos_live_default",
+    'BanG Dream/08MyGO!!!!!/36高松灯/036_cos_live_default',
+    'BanG Dream/00月度服装/000_cos_monthly'];
+  const models = paths.map(path => ({ ...fixtures[0], name: path.split('/').at(-1)!,
+    path, installPath: `3d/figure/${path}` }));
+  const tree = buildModelTree(models);
+  assert.equal(allModels(tree).length, 3);
+  for (const model of models) {
+    assert.equal(folderAt(tree, model.path.split('/').slice(0, -1).join('/')).models[0], model);
+  }
+});
 test('shared resource catalog separates motions from figures, background and music', () => {
   const entries = (['motion', 'live2d_mot_exp', 'background', 'bgm', 'figure'] as const).map(type => ({ type, name: type, description: '', installPath: type, checkPath: type, url: type }));
   assert.deepEqual(resourcesForTab(entries, 'motion').map(item => item.type), ['motion', 'live2d_mot_exp']);

@@ -8,6 +8,32 @@ const { createPacked, createZip } = require('./fixtures.cjs');
 const { createPackageServer } = require('./package-server.cjs');
 const { installModel, extractArchive, downloadArchive } = require('../electron/model-installer.cjs');
 const { installResource } = require('../electron/resource-installer.cjs');
+const { checkInstalledAt } = require('../electron/projects.cjs');
+
+test('band and monthly model paths install into their final package directory', async () => {
+  const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'package-manager-band-'));
+  let server;
+  try {
+    const packed = path.join(temporary, 'packed'), game = path.join(temporary, 'game');
+    await fs.mkdir(game);
+    const models = [
+      { name: '001_cos_live_default', description: '', path: "BanG Dream/01Poppin'Party/01户山香澄/001_cos_live_default" },
+      { name: '036_cos_live_default', description: '', path: 'BanG Dream/08MyGO!!!!!/36高松灯/036_cos_live_default' },
+      { name: '000_cos_monthly', description: '', path: 'BanG Dream/00月度服装/000_cos_monthly' },
+    ];
+    const catalog = await createPacked(packed, models, Buffer.from('image'));
+    server = await createPackageServer(packed);
+    for (const entry of catalog) {
+      entry.url = new URL(entry.url, server.origin).href;
+      await installModel(game, entry, false);
+      assert.equal(await fs.readFile(path.join(game, entry.installPath, 'model.glb'), 'utf8'), 'test-model-content');
+      const status = await checkInstalledAt(game, [{ path: entry.installPath, directoryOnly: true }]);
+      assert.equal(status[entry.installPath].installed, true);
+      await assert.rejects(installModel(game, entry, false), /请确认/);
+      await installModel(game, entry, true);
+    }
+  } finally { await server?.close(); await fs.rm(temporary, { recursive: true, force: true }); }
+});
 
 test('resource download preserves sibling files and requires confirmed replacement', async () => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'package-manager-resource-'));

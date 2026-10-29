@@ -1,7 +1,7 @@
 export interface ModelPackage {
   name: string;
   description: string;
-  /** 相对于模型分类根目录的路径：团体/角色/模型目录。 */
+  /** 相对于模型分类根目录的路径，最后一层为模型目录。 */
   path: string;
   /** 相对于游戏 game 目录，指向模型 config.json 所在目录。 */
   installPath: string;
@@ -39,7 +39,7 @@ export function buildModelTree(models: ModelPackage[]): ModelFolder {
   const root: ModelFolder = { kind: 'folder', name: '全部模型', path: '', folders: [], models: [] };
   for (const model of models) {
     const parts = model.path.split('/');
-    if (parts.length !== 3 || parts.some(part => !part || part === '.' || part === '..')) {
+    if (parts.some(part => !part || part === '.' || part === '..')) {
       throw Error(`无效模型路径: ${model.path}`);
     }
     let folder = root;
