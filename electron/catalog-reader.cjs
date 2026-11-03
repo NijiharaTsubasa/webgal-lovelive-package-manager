@@ -30,6 +30,7 @@ function parseCatalog(catalog, base, kind) {
       for (const field of ['bytes', 'unpackedBytes']) {
         if (!Number.isSafeInteger(item[field]) || item[field] <= 0) fail(`${field} 必须是正整数`);
       }
+      if (item.pinOrder !== undefined && (!Number.isSafeInteger(item.pinOrder) || item.pinOrder <= 0)) fail('pinOrder 必须是正整数');
       if (typeof item.sha256 !== 'string' || !/^[a-f0-9]{64}$/.test(item.sha256)) fail('sha256 校验值无效');
     } else {
       if (!Object.hasOwn(roots, item.type)) fail('type 资源类型无效');

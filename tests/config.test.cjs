@@ -60,6 +60,10 @@ test('catalog validation identifies broken entry and field without raw runtime e
   const model = { path: '莲之空/花帆/model', name: 'model', description: '', installPath: '3d/figure/莲之空/花帆/model',
     bytes: 100, unpackedBytes: 200, sha256: 'a'.repeat(64), url: 'model.zip' };
   assert.equal(parseCatalog([model], base, 'model').size, 1);
+  assert.equal(parseCatalog([{ ...model, pinOrder: 2 }], base, 'model').get(model.path).pinOrder, 2);
+  for (const pinOrder of [0, -1, 1.5, '1', null]) {
+    assert.throws(() => parseCatalog([{ ...model, pinOrder }], base, 'model'), /pinOrder/);
+  }
   for (const [field, value] of [['path', null], ['installPath', 'wrong'], ['bytes', 0], ['unpackedBytes', '200'], ['sha256', 'bad']]) {
     assert.throws(() => parseCatalog([{ ...model, [field]: value }], base, 'model'), new RegExp(`第 1 项.*${field}`));
   }

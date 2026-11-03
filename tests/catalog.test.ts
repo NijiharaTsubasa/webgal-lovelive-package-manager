@@ -54,3 +54,17 @@ test('resource previews only use catalog images', () => {
   assert.equal(resourcePreviewUrl({ url: 'https://host/a.zip', preview: 'https://host/custom.webp' }), 'https://host/custom.webp');
   assert.equal(resourcePreviewUrl({ url: 'https://host/download?id=1' }), undefined);
 });
+
+test('pinned models lead their own folder and supply its preview without reordering folders', () => {
+  const items = [
+    { ...fixtures[0], name: 'second', path: '虹咲/09璃奈/z', pinOrder: 2 },
+    { ...fixtures[1], name: 'first', path: '虹咲/09璃奈/y', pinOrder: 1 },
+    { ...fixtures[0], name: 'plain-a', path: '虹咲/09璃奈/a' },
+    { ...fixtures[0], name: 'plain-b', path: '虹咲/09璃奈/b' },
+    { ...fixtures[0], name: 'another', path: '虹咲/01步梦/x', pinOrder: 99 },
+  ];
+  const tree = buildModelTree(items);
+  assert.deepEqual(folderAt(tree, '虹咲/09璃奈').models.map(item => item.name), ['first', 'second', 'plain-a', 'plain-b']);
+  assert.equal(allModels(folderAt(tree, '虹咲/09璃奈'))[0].preview, items[1].preview);
+  assert.equal(tree.folders[0].folders[0].name, '01步梦');
+});

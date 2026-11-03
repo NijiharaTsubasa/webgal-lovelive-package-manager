@@ -9,6 +9,7 @@ export interface ModelPackage {
   preview?: string;
   bytes?: number;
   unpackedBytes?: number;
+  pinOrder?: number;
 }
 export function formatBytes(bytes: number): string {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -56,7 +57,8 @@ export function buildModelTree(models: ModelPackage[]): ModelFolder {
   }
   function sort(folder: ModelFolder) {
     folder.folders.sort((a, b) => a.name.localeCompare(b.name, 'zh-CN', { numeric: true }));
-    folder.models.sort((a, b) => a.path.localeCompare(b.path, 'zh-CN', { numeric: true }));
+    folder.models.sort((a, b) => ((a.pinOrder ?? Infinity) - (b.pinOrder ?? Infinity))
+      || a.path.localeCompare(b.path, 'zh-CN', { numeric: true }));
     folder.folders.forEach(sort);
   }
   sort(root);
