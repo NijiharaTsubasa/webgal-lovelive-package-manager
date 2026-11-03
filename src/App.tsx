@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ModelFolder, ModelPackage, ResourcePackage, ResourceType } from './catalog';
 import { allModels, buildModelTree, folderAt, matchesSearch, resourcesForTab, resourcePreviewUrl, formatBytes } from './catalog';
-import type { DownloadProgress, InstallStatus, Project } from './desktop';
+import type { DownloadProgress, EngineStatus, InstallStatus, Project } from './desktop';
 import ProjectPicker from './ProjectPicker';
 import RedownloadDialog from './RedownloadDialog';
 import DownloadErrorDialog from './DownloadErrorDialog';
@@ -44,6 +44,7 @@ function Directory({ folder, current, go }: { folder: ModelFolder; current: stri
   </li>;
 }
 export default function App() {
+  const contentRef = useRef<HTMLElement>(null);
   const [modelPackages, setModelPackages] = useState<ModelPackage[]>([]);
   const [resourcePackages, setResourcePackages] = useState<ResourcePackage[]>([]);
   const [resourceError, setResourceError] = useState('');
@@ -70,6 +71,20 @@ export default function App() {
   const [checkRevision, setCheckRevision] = useState(0);
   const [redownload, setRedownload] = useState<Package>();
   const [downloadFailure, setDownloadFailure] = useState<{ item: Package; overwrite: boolean; message: string }>();
+  const [engineStatus, setEngineStatus] = useState<EngineStatus | null>(null);
+  const [engineError, setEngineError] = useState('');
+  const [engineRevision, setEngineRevision] = useState(0);
+  const [upgrading, setUpgrading] = useState(false);
+  const busy = downloading || upgrading;
+  useEffect(() => {
+    let active = true;
+    setEngineStatus(null); setEngineError('');
+    if (!project || project.engineId !== 'webgal-lovelive.lovelive') return;
+    void window.packageManager!.engineStatus(project.id).then(status => {
+      if (active) setEngineStatus(status);
+    }).catch(error => { if (active) setEngineError(String(error.message ?? error)); });
+    return () => { active = false; };
+  }, [project, engineRevision]);
   useEffect(() => {
     let active = true;
     setCatalogLoading(true); setCatalogError('');
@@ -112,7 +127,7 @@ export default function App() {
   const models = tab !== 'model' ? [] : query.trim() ? allModels(folder).filter(item => matchesSearch(item, query)) : folder.models;
   const folders = tab !== 'model' || query.trim() ? [] : folder.folders;
   const resources = tab === 'model' ? [] : resourcesForTab(resourcePackages, tab).filter(item => matchesSearch(item, query));
-  function go(next: string) { setPath(next); setQuery(''); setSelected(undefined); }
+  function go(next: string) { if (contentRef.current) contentRef.current.scrollTop = 0; setPath(next); setQuery(''); setSelected(undefined); }
   function changeTab(next: Tab) { setTab(next); setQuery(''); setSelected(undefined); }
   async function download(item: Package, overwrite = false) {
     setDownloadFailure(undefined);
@@ -135,39 +150,55 @@ export default function App() {
     setProject(next); setChoosingProject(false); setNotice(''); setRedownload(undefined); setDownloadFailure(undefined);
     setInstallation(undefined);
   }
+  async function upgrade() {
+    if (busy) return;
+    setUpgrading(true); setEngineError(''); setNotice('正在升级引擎…');
+    try {
+      const updated = await window.packageManager!.upgradeEngine(project!.id);
+      setProject(updated);
+      setCheckRevision(value => value + 1);
+      setNotice(`引擎已升级至 ${updated.engineVersion}。${updated.themeNotice ?? ''}请刷新或重新打开游戏预览。`);
+    } catch (error) {
+      setEngineError(error instanceof Error ? error.message : String(error));
+      setNotice('引擎升级失败，请查看上方提示。');
+    } finally { setUpgrading(false); }
+  }
   if (choosingProject || !project) return <div className="app">
     <header className="header"><div className="brand-icon">W</div><div><h1>WebGAL LoveLive</h1><span className="subtitle">包管理器</span></div></header>
     <ProjectPicker onSelect={chooseProject} onCancel={project ? () => setChoosingProject(false) : undefined} />
   </div>;
   return <div className="app">
-    <header className="header"><div className="brand-icon">W</div><div><h1>WebGAL LoveLive</h1><span className="subtitle">包管理器</span></div><div className="project-current"><span>当前工程：{project.name}</span><button disabled={downloading} onClick={() => setChoosingProject(true)}>切换工程</button><button disabled={checking} onClick={() => setCheckRevision(value => value + 1)}>刷新安装状态</button></div></header>
+    <header className="header"><div className="brand-icon">W</div><div><h1>WebGAL LoveLive</h1><span className="subtitle">包管理器</span></div><div className="project-current"><span>当前工程：{project.name}</span><button disabled={busy} onClick={() => setChoosingProject(true)}>切换工程</button><button disabled={checking || busy} onClick={() => { setCheckRevision(value => value + 1); setEngineRevision(value => value + 1); }}>刷新安装状态</button></div></header>
+    {engineStatus?.available && <div className="engine-upgrade-banner" role="status">
+      <div><span>当前工程引擎版本：{engineStatus.currentVersion}，一键包附带引擎版本：{engineStatus.latestVersion}。</span>
+        {engineStatus.themeNotice && <div>{engineStatus.themeNotice}</div>}</div>
+      <button disabled={busy} onClick={() => void upgrade()}>{upgrading ? '正在升级引擎…' : '点击此处升级引擎'}</button>
+    </div>}
+    {engineError && <div className="engine-upgrade-error" role="alert"><span>{engineError}</span><button disabled={busy} onClick={() => setEngineRevision(value => value + 1)}>重新检测</button></div>}
     <nav className="tabs" aria-label="资源类别">{([['model', '模型'], ['motion', '动作'], ['other', '其他']] as const).filter(([key]) => project.engineId === 'webgal-lovelive.lovelive' || key === 'other').map(([key, title]) => <button key={key}
       aria-pressed={tab === key} className={tab === key ? 'selected' : ''} onClick={() => changeTab(key)}>{title}<span>{key === 'model' ? modelPackages.length : resourcesForTab(resourcePackages, key).length}</span></button>)}</nav>
     <div className="workspace">
-      <aside className="sidebar"><div className="section-title">{tab === 'model' ? '模型目录' : '资源分类'}</div>
-        {tab === 'model' ? <><button className={`all-button ${!path ? 'active' : ''}`} onClick={() => go('')}>全部模型<span>{modelPackages.length}</span></button><ul className="tree">{root.folders.map(group => <Directory key={group.path} folder={group} current={path} go={go} />)}</ul></>
-          : <div className="category-note">{tab === 'motion' ? '3D 动作\nLive2D 动作与表情' : '立绘\n背景\n音乐'}</div>}
-        <div className="sidebar-foot">按需选择资源包</div>
-      </aside>
-      <main>
+      {tab === 'model' && <aside className="sidebar"><div className="section-title">模型目录</div>
+        <button className={`all-button ${!path ? 'active' : ''}`} onClick={() => go('')}>全部模型<span>{modelPackages.length}</span></button><ul className="tree">{root.folders.map(group => <Directory key={group.path} folder={group} current={path} go={go} />)}</ul>
+      </aside>}
+      <main ref={contentRef}>
         {tab === 'model' && catalogLoading && <p role="status">正在下载模型清单…</p>}
         {tab === 'model' && catalogError && <div className="catalog-error" role="alert"><p>{catalogError}</p><button onClick={() => setCatalogRevision(value => value + 1)}>重试</button></div>}
         {tab !== 'model' && resourceError && <div className="catalog-error" role="alert"><p>{resourceError}</p><button onClick={() => setCatalogRevision(value => value + 1)}>重试</button></div>}
         {checking && <p className="install-message" role="status">正在检测已安装资源…</p>}
         {checkError && <p className="install-message" role="alert">安装检测失败：{checkError}</p>}
-        <div className="content-heading"><div><h2>{tab === 'model' ? folder.name : tab === 'motion' ? '动作与表情' : '立绘、背景与音乐'}</h2><p>{tab === 'model' ? '按团体和角色浏览，选择需要的服装模型。' : '查看资源包内容，选择需要的素材。'}</p></div>
+        <div className="content-heading"><div><h2>{tab === 'model' ? folder.name : tab === 'motion' ? '动作与表情' : '立绘、背景与音乐'}</h2></div>
           <label className="search"><span>⌕</span><input aria-label="搜索资源" placeholder={tab === 'model' ? '搜索当前目录的角色、服装…' : '搜索名称、说明…'} value={query} onChange={event => setQuery(event.target.value)} />{query && <button aria-label="清除搜索" onClick={() => setQuery('')}>×</button>}</label></div>
         {project.engineId !== 'webgal-lovelive.lovelive' && <div className="motion-notice" role="note">
           <p>当前工程的引擎为：{project.engineId}，只显示引擎支持的内容</p>
         </div>}
         {tab === 'motion' && <div className="motion-notice" role="note">
-          <strong>注意</strong>
           <p>本页面下载的表情／动作默认仅在 3D 模型的表情／动作列表中可见，即使显示的类型是“Live2D 动作与表情”也是如此。如需在 Live2D 模型中使用，您需要手动修改 <code>model.json</code>，加入对应的表情和动作。</p>
         </div>}
         {tab === 'model' && <nav className="breadcrumbs" aria-label="模型路径"><button onClick={() => go('')}>全部模型</button>{path.split('/').filter(Boolean).map((part, index, parts) => <span key={index}> / <button onClick={() => go(parts.slice(0, index + 1).join('/'))}>{part}</button></span>)}</nav>}
         <div className="grid">
-          {folders.map(item => <button className="card folder-card" key={item.path} onClick={() => go(item.path)}><span className="folder-badge" aria-label="文件夹"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 5h7l2 2h9v13H3z" fill="currentColor" /></svg></span><Preview src={allModels(item)[0]?.preview} label={item.name} /><div className="card-info"><span className="card-kicker">目录 · {allModels(item).length} 个模型</span><h3>{item.name}</h3><p>打开目录 →</p></div></button>)}
-          {models.map(item => <button className={`card ${selected?.url === item.url ? 'chosen' : ''}`} key={item.path} onClick={() => setSelected(item)}>{statusOf(item)?.installed && <span className="installed-badge">已安装</span>}<Preview src={item.preview} label={item.description} /><div className="card-info"><span className="card-kicker">3D 模型</span><h3>{item.description}</h3><p>{item.name}</p>{statusOf(item)?.error && <p className="status-error">检测失败</p>}</div></button>)}
+          {folders.map(item => <button className="card folder-card" key={item.path} onClick={() => go(item.path)}><span className="folder-badge" aria-label="文件夹"><svg viewBox="0 0 24 24" width="22" height="22" aria-hidden="true"><path d="M3 5h7l2 2h9v13H3z" fill="currentColor" /></svg></span><Preview src={allModels(item)[0]?.preview} label={item.name} /><div className="card-info"><span className="card-kicker">目录 · {allModels(item).length} 个模型</span><h3>{item.name}</h3></div></button>)}
+          {models.map(item => <button className={`card ${selected?.url === item.url ? 'chosen' : ''}`} key={item.path} onClick={() => setSelected(item)}>{statusOf(item)?.installed && <span className="installed-badge">已安装</span>}<Preview src={item.preview} label={item.description} /><div className="card-info"><h3>{item.description}</h3><p>{item.name}</p>{statusOf(item)?.error && <p className="status-error">检测失败</p>}</div></button>)}
           {resources.map(item => <button className={`card resource-card ${selected?.url === item.url ? 'chosen' : ''}`} key={item.url} onClick={() => setSelected(item)}>{statusOf(item)?.installed && <span className="installed-badge">已安装</span>}<ResourcePreview item={item} /><div className="card-info"><span className="card-kicker">{labels[item.type]}</span><h3>{item.name}</h3><p>{item.description}</p>{statusOf(item)?.error && <p className="status-error">检测失败</p>}</div></button>)}
         </div>
         {!folders.length && !models.length && !resources.length && <div className="empty">没有找到匹配的资源。<button onClick={() => setQuery('')}>清除搜索</button></div>}
@@ -175,15 +206,15 @@ export default function App() {
       <aside className="details"><div className="section-title">资源详情</div>{selected ? <>
         {'path' in selected ? <Preview key={selected.url} src={selected.preview} label={selected.description} /> : <ResourcePreview key={selected.url} item={selected} />}
         <h3>{selected.description && 'path' in selected ? selected.description : selected.name}</h3>
-        <p>{selected.description}</p><dl><dt>资源名称</dt><dd>{selected.name}</dd><dt>安装目录（相对于 game）</dt><dd>{selected.installPath}</dd>
+        {!('path' in selected) && selected.description && <p>{selected.description}</p>}<dl><dt>资源名称</dt><dd>{selected.name}</dd><dt>安装目录（相对于 game）</dt><dd>{selected.installPath}</dd>
           {'path' in selected && <>
             {selected.bytes !== undefined && <><dt>下载大小</dt><dd data-testid="download-size" title={`${selected.bytes.toLocaleString('zh-CN')} 字节`}>{formatBytes(selected.bytes)}</dd></>}
             {selected.unpackedBytes !== undefined && <><dt>解压后大小</dt><dd data-testid="unpacked-size" title={`${selected.unpackedBytes.toLocaleString('zh-CN')} 字节`}>{formatBytes(selected.unpackedBytes)}</dd></>}
           </>}
         </dl>
         {selectedStatus?.error && <p role="alert">检测失败：{selectedStatus.error}</p>}
-        <button className="primary" disabled={downloading || !statusReady || !!selectedStatus?.error} onClick={() => selectedStatus?.installed ? setRedownload(selected) : void download(selected)}>{downloading ? '正在安装…' : selectedStatus?.installed ? '重新下载' : '下载并安装'}</button>
-      </> : <div className="detail-empty">选择一个资源包<br />查看说明和目录</div>}
+        <button className="primary" disabled={busy || !statusReady || !!selectedStatus?.error} onClick={() => selectedStatus?.installed ? setRedownload(selected) : void download(selected)}>{downloading ? '正在安装…' : selectedStatus?.installed ? '重新下载' : '下载并安装'}</button>
+      </> : <div className="detail-empty">选择资源包</div>}
         {downloading && progress && <div className="download-progress" role="status"><p>{progress.state === 'extracting' ? `正在解压…${progress.files ? ` ${progress.files}/${progress.totalFiles}` : ''}` : progress.state === 'installing' ? '正在安装…' : progress.state === 'installed' ? '安装完成' : `正在下载：${progress.total ? `${Math.round(progress.received / progress.total * 100)}%` : ''}`}<br />{(progress.received / 1048576).toFixed(1)} MB{progress.total > 0 && ` / ${(progress.total / 1048576).toFixed(1)} MB`}</p>{progress.total > 0 ? <progress value={progress.received} max={progress.total} /> : <progress />}</div>}
       </aside>
     </div>

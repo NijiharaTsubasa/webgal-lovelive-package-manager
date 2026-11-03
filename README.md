@@ -12,6 +12,10 @@ Electron 桌面应用，用于浏览、下载和安装模型、动作、表情�
 
 选择模型后点击“下载并安装”，模型将按清单中的分类目录安装到当前工程的 `game/3d/figure` 下。重新下载会替换该模型目录内的文件；下载或解压失败时保留原模型，并弹出失败原因，可点击“重试”。
 
+打开 LoveLive 工程时，包管理器会检查自身所在目录的 `data/derivative-engines` 中附带的 LoveLive 引擎。若存在更新版本，页面顶部会显示工程版本、附带版本和升级按钮。点击后完整替换工程的 `assets`、`index.html`、`game/3d/runtime` 和 `webgal-engine.json`。升级成功后，请刷新或重新打开游戏预览。
+
+使用 LLAS 主题的工程会同时更新 `game/template`，主题按 `data/templates` 中 `template.json` 的名称匹配。若找到多个 LLAS 主题，包管理器会保留当前主题，并提示在 Terre 中手动应用最新主题。
+
 ## 运行
 
 安装 Node.js 22.18 或更高版本，在项目目录执行：

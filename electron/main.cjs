@@ -7,6 +7,7 @@ const { readCatalogConfig } = require('./catalog-config.cjs');
 const { fetchCatalog, parseCatalog } = require('./catalog-reader.cjs');
 const { userError } = require('./user-error.cjs');
 const { appDirectory } = require('./app-directory.cjs');
+const { engineUpgradeStatus, upgradeEngine } = require('./engine-upgrade.cjs');
 const applicationDirectory = appDirectory(app);
 const projects = new Map();
 const models = new Map();
@@ -71,6 +72,24 @@ app.whenReady().then(async () => {
     if (!project) throw Error('请先选择工程');
     return checkInstalledAt(project.gameRoot, entries);
   });
+  handle('projects:engine-status', (event, id) => {
+    verifySender(event);
+    const project = projects.get(id);
+    if (!project) throw Error('请先选择工程');
+    return engineUpgradeStatus(configDirectory, project.id);
+  });
+  handle('projects:upgrade-engine', async (event, id) => {
+    verifySender(event);
+    const project = projects.get(id);
+    if (!project) throw Error('请先选择工程');
+    if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
+    installing.add(id);
+    try {
+      const updated = await upgradeEngine(configDirectory, project.id);
+      projects.set(id, updated);
+      return updated;
+    } finally { installing.delete(id); }
+  });
   handle('models:list', async event => {
     verifySender(event);
     const catalogConfig = await readCatalogConfig(configDirectory);
@@ -84,7 +103,7 @@ app.whenReady().then(async () => {
     const project = projects.get(id), model = models.get(modelId);
     if (!project || !model) throw Error('请先选择工程和模型');
     if (project.engineId !== 'webgal-lovelive.lovelive') throw Error('当前引擎不支持此模型');
-    if (installing.has(id)) throw Error('当前工程已有模型正在安装');
+    if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
     installing.add(id);
     try {
       await installModel(project.gameRoot, model, overwrite === true, progress => {
@@ -105,7 +124,7 @@ app.whenReady().then(async () => {
     const project = projects.get(id), resource = resources.get(url);
     if (!project || !resource) throw Error('请先选择工程和资源');
     if (project.engineId !== 'webgal-lovelive.lovelive' && ['motion', 'live2d_mot_exp'].includes(resource.type)) throw Error('当前引擎不支持此资源');
-    if (installing.has(id)) throw Error('当前工程已有资源正在安装');
+    if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
     installing.add(id);
     try {
       await installResource(project.gameRoot, resource, overwrite === true, progress => {

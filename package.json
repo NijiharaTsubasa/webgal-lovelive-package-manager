@@ -10,7 +10,7 @@
     "build": "tsc --noEmit && vite build",
     "pack:win": "npm run build && electron-builder --win portable --x64 && node scripts/copy-release-config.mjs",
     "start": "electron .",
-    "test": "node --test tests/catalog.test.ts tests/projects.test.cjs tests/download.test.cjs tests/config.test.cjs",
+    "test": "node --test tests/catalog.test.ts tests/projects.test.cjs tests/download.test.cjs tests/config.test.cjs tests/engine-upgrade.test.cjs",
     "test:electron": "playwright test"
   },
   "engines": {

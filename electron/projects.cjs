@@ -73,7 +73,8 @@ async function readProject(directory) {
     invalid.invalidProject = true;
     throw invalid;
   }
-  return { id: root, name: path.basename(root), gameRoot: path.join(root, 'game'), engineId: engine.id };
+  return { id: root, name: path.basename(root), gameRoot: path.join(root, 'game'), engineId: engine.id,
+    engineVersion: typeof engine.version === 'string' ? engine.version : undefined };
 }
 async function checkPath(root, entry) {
   try {

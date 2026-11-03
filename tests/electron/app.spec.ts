@@ -58,7 +58,7 @@ test('desktop browsing, previews and resource installation', async () => {
     await expect(page.getByRole('heading', { name: '全部模型' })).toBeVisible();
     await expect(page.locator('.folder-card')).toHaveCount(4);
     await expect(page.locator('.folder-card .folder-badge')).toHaveCount(4);
-    await page.getByRole('button', { name: '目录 · 2 个模型 虹咲 打开目录 →' }).click();
+    await page.locator('.folder-card').filter({ hasText: '虹咲' }).click();
     await page.locator('.folder-card').click();
     await expect(page.locator('.grid .card')).toHaveCount(2);
     await page.locator('.grid .card').first().click();
@@ -138,6 +138,62 @@ test('desktop browsing, previews and resource installation', async () => {
     await expect(page.getByText('当前工程的引擎为：webgal.mygo，只显示引擎支持的内容')).toBeVisible();
     await expect(page.locator('main .motion-notice[role="note"]')).toContainText('当前工程的引擎为：webgal.mygo');
     expect(errors).toEqual([]);
+  } finally { await app.close(); await catalogServers.get(gamesRoot)?.close(); await rm(gamesRoot, { recursive: true, force: true }); }
+});
+
+test('older LoveLive project upgrades from latest bundled engine through the banner', async () => {
+  const gamesRoot = await testProjects();
+  const project = join(gamesRoot, '工程甲');
+  const bundled = join(gamesRoot, 'data/derivative-engines/任意引擎目录名');
+  for (const [root, version, filename] of [[project, '0.1.0-beta.1', 'old'], [bundled, '0.2.0', 'new']]) {
+    await mkdir(join(root, 'assets'), { recursive: true });
+    await mkdir(join(root, 'game/3d/runtime'), { recursive: true });
+    await writeFile(join(root, 'assets', `${filename}.js`), filename);
+    await writeFile(join(root, 'game/3d/runtime', `${filename}.js`), filename);
+    await writeFile(join(root, 'index.html'), filename);
+    await writeFile(join(root, 'webgal-engine.json'), JSON.stringify({ id: 'webgal-lovelive.lovelive', version }));
+  }
+  await writeFile(join(bundled, 'assets/webgal-engine.json'), 'not an engine root');
+  const themeName = 'LoveLive! All Stars Theme';
+  const bundledTheme = join(gamesRoot, 'data/templates/arbitrary-theme-folder');
+  await mkdir(join(project, 'game/template/UI'), { recursive: true });
+  await mkdir(join(bundledTheme, 'UI'), { recursive: true });
+  await writeFile(join(project, 'game/template/template.json'), JSON.stringify({ name: themeName }));
+  await writeFile(join(project, 'game/template/UI/old.scss'), 'old theme');
+  await writeFile(join(bundledTheme, 'template.json'), JSON.stringify({ name: themeName }));
+  await writeFile(join(bundledTheme, 'UI/new.scss'), 'new theme');
+  const env = { ...process.env, PACKAGE_MANAGER_TEST: '1', PACKAGE_MANAGER_TEST_GAMES_ROOT: gamesRoot, PACKAGE_MANAGER_TEST_CONFIG_ROOT: gamesRoot };
+  delete env.ELECTRON_RUN_AS_NODE;
+  delete env.PACKAGE_MANAGER_DEV_URL;
+  const app = await _electron.launch({ args: ['.'], env });
+  try {
+    const page = await app.firstWindow();
+    await page.getByRole('button', { name: /工程甲.*打开/ }).click();
+    await expect(page.locator('.engine-upgrade-banner')).toContainText('当前工程引擎版本：0.1.0-beta.1，一键包附带引擎版本：0.2.0。');
+    await page.screenshot({ path: 'test-results/engine-upgrade-banner.png' });
+    await page.getByRole('button', { name: '点击此处升级引擎' }).click();
+    await expect(page.locator('footer')).toContainText('引擎已升级至 0.2.0');
+    await expect(page.locator('.engine-upgrade-banner')).toHaveCount(0);
+    expect(await readFile(join(project, 'index.html'), 'utf8')).toBe('new');
+    expect(JSON.parse(await readFile(join(project, 'webgal-engine.json'), 'utf8')).version).toBe('0.2.0');
+    expect(await readFile(join(project, 'assets/new.js'), 'utf8')).toBe('new');
+    expect(await readFile(join(project, 'game/3d/runtime/new.js'), 'utf8')).toBe('new');
+    expect(await readFile(join(project, 'game/template/UI/new.scss'), 'utf8')).toBe('new theme');
+    await expect(readFile(join(project, 'game/template/UI/old.scss'))).rejects.toThrow();
+    const duplicate = join(gamesRoot, 'data/templates/duplicate');
+    await mkdir(duplicate);
+    await writeFile(join(duplicate, 'template.json'), JSON.stringify({ name: themeName }));
+    await writeFile(join(project, 'game/template/UI/new.scss'), 'keep current theme');
+    await writeFile(join(project, 'webgal-engine.json'), JSON.stringify({ id: 'webgal-lovelive.lovelive', version: '0.1.0' }));
+    await page.getByRole('button', { name: '刷新安装状态' }).click();
+    await expect(page.locator('.engine-upgrade-banner')).toContainText('存在多个 LLAS 主题');
+    await page.getByRole('button', { name: '点击此处升级引擎' }).click();
+    await expect(page.locator('footer')).toContainText('请在 Terre 中手动应用最新的 LLAS 主题');
+    expect(await readFile(join(project, 'game/template/UI/new.scss'), 'utf8')).toBe('keep current theme');
+    await expect(page.getByRole('button', { name: '切换工程' })).toBeEnabled();
+    await page.getByRole('button', { name: '切换工程' }).click();
+    await page.getByRole('button', { name: /其他引擎.*打开/ }).click();
+    await expect(page.locator('.engine-upgrade-banner')).toHaveCount(0);
   } finally { await app.close(); await catalogServers.get(gamesRoot)?.close(); await rm(gamesRoot, { recursive: true, force: true }); }
 });
 

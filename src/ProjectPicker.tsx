@@ -26,7 +26,7 @@ export default function ProjectPicker({ onSelect, onCancel }: { onSelect: (proje
     } catch (error) { setError(`无法打开工程：${error instanceof Error ? error.message : String(error)}`); }
   }
   return <section className="project-picker" aria-label="选择工程">
-    <div className="project-panel"><h2>选择要管理资源的工程</h2><p>选择 games 中的工程，或浏览本地目录。</p><p className="project-root">{root}</p>
+    <div className="project-panel"><h2>选择要管理资源的工程</h2><p className="project-root">{root}</p>
       {loading ? <p role="status">正在查找工程…</p> : error ? <p role="alert">{error}</p> : projects.length
         ? <div className="project-list">{projects.map(project => <button key={project.id} onClick={() => onSelect(project)}><strong>{project.name}</strong><span>{project.gameRoot}</span><b>打开 →</b></button>)}</div>
         : <p>未找到工程。请将本工具复制到WebGAL Terre主程序同级目录再执行，或浏览本地目录。</p>}

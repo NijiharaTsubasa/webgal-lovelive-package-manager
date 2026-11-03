@@ -10,6 +10,8 @@ async function invoke(channel, ...args) {
 contextBridge.exposeInMainWorld('packageManager', {
   listProjects: () => invoke('projects:list'),
   browseProject: () => invoke('projects:browse'),
+  engineStatus: id => invoke('projects:engine-status', id),
+  upgradeEngine: id => invoke('projects:upgrade-engine', id),
   listModels: () => invoke('models:list'),
   listResources: () => invoke('resources:list'),
   installResource: (id, url, overwrite) => invoke('resources:install', id, url, overwrite),
