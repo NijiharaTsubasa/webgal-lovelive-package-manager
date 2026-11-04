@@ -11,14 +11,16 @@ async function *filesIn(directory, prefix = '') {
     else yield relative;
   }
 }
-async function installResource(gameRoot, resource, overwrite, progress = () => {}) {
+async function installResource(gameRoot, resource, overwrite, progress = () => {}, direct = false) {
   const directory = roots[resource.type];
   if (!directory || !resource.checkPath.startsWith(`${directory}/`)) throw Error('资源检测路径必须位于对应资源目录');
   const root = await fs.realpath(gameRoot);
-  const status = (await checkInstalledAt(root, [{ path: resource.checkPath }]))[resource.checkPath];
+  const archiveCheckPath = resource.checkPath.slice(directory.length + 1);
+  const checkPath = direct ? archiveCheckPath : resource.checkPath;
+  const status = (await checkInstalledAt(root, [{ path: checkPath }]))[checkPath];
   if (status.error) throw Error(status.error);
   if (status.installed && !overwrite) throw Error('资源已安装，请确认重新下载');
-  const target = await safeParent(root, directory);
+  const target = direct ? root : await safeParent(root, directory);
   const temporary = await fs.mkdtemp(path.join(target, '.package-install-'));
   const staged = path.join(temporary, 'content'), backup = path.join(temporary, 'previous');
   const written = [], previous = [];
@@ -32,14 +34,14 @@ async function installResource(gameRoot, resource, overwrite, progress = () => {
     await extractFiles(archive, staged, {}, update => {
       if (Date.now() - last > 100) { progress({ state: 'extracting', ...bytes, ...update }); last = Date.now(); }
     });
-    const check = path.resolve(staged, resource.checkPath.slice(directory.length + 1));
+    const check = path.resolve(staged, archiveCheckPath);
     if (!inside(staged, check)) throw Error('资源检测路径超出安装目录');
     try { await fs.access(check); }
     catch (error) {
       if (error.code !== 'ENOENT') throw error;
       throw Error(`资源包缺少清单指定的文件或目录：${resource.checkPath}。请联系下载源维护者。`);
     }
-    const current = (await checkInstalledAt(root, [{ path: resource.checkPath }]))[resource.checkPath];
+    const current = (await checkInstalledAt(root, [{ path: checkPath }]))[checkPath];
     if (current.error) throw Error(current.error);
     if (current.installed && !overwrite) throw Error('资源已安装，请确认重新下载');
     if (await fs.realpath(target) !== target) throw Error('安装目录在下载期间发生变化');

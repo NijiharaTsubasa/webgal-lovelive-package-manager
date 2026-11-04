@@ -53,17 +53,21 @@ export default function App() {
   const [catalogRevision, setCatalogRevision] = useState(0);
   const [downloading, setDownloading] = useState(false);
   const [progress, setProgress] = useState<DownloadProgress>();
+  const [project, setProject] = useState<Project>();
+  const directKind = project?.sharedKind === 'all' ? undefined : project?.sharedKind;
+  const visibleResources = useMemo(() => directKind
+    ? resourcePackages.filter(item => item.type === directKind)
+    : resourcePackages, [directKind, resourcePackages]);
   const root = useMemo(() => buildModelTree(modelPackages), [modelPackages]);
   const installationEntries = useMemo(() => [
-    ...modelPackages.map(item => ({ path: item.installPath, directoryOnly: true })),
-    ...resourcePackages.map(item => ({ path: item.checkPath, directoryOnly: false })),
-  ], [modelPackages, resourcePackages]);
+    ...(directKind ? [] : modelPackages.map(item => ({ path: item.installPath, directoryOnly: true }))),
+    ...visibleResources.map(item => ({ path: item.checkPath, directoryOnly: false })),
+  ], [directKind, modelPackages, visibleResources]);
   const [tab, setTab] = useState<Tab>('model');
   const [path, setPath] = useState('');
   const [query, setQuery] = useState('');
   const [selected, setSelected] = useState<Package>();
   const [notice, setNotice] = useState('');
-  const [project, setProject] = useState<Project>();
   const [choosingProject, setChoosingProject] = useState(true);
   const [installation, setInstallation] = useState<{ project: string; status: Record<string, InstallStatus> }>();
   const [checking, setChecking] = useState(false);
@@ -79,7 +83,7 @@ export default function App() {
   useEffect(() => {
     let active = true;
     setEngineStatus(null); setEngineError('');
-    if (!project || project.engineId !== 'webgal-lovelive.lovelive') return;
+    if (!project || project.sharedKind || project.engineId !== 'webgal-lovelive.lovelive') return;
     void window.packageManager!.engineStatus(project.id).then(status => {
       if (active) setEngineStatus(status);
     }).catch(error => { if (active) setEngineError(String(error.message ?? error)); });
@@ -126,7 +130,7 @@ export default function App() {
   const folder = folderAt(root, path);
   const models = tab !== 'model' ? [] : query.trim() ? allModels(folder).filter(item => matchesSearch(item, query)) : folder.models;
   const folders = tab !== 'model' || query.trim() ? [] : folder.folders;
-  const resources = tab === 'model' ? [] : resourcesForTab(resourcePackages, tab).filter(item => matchesSearch(item, query));
+  const resources = tab === 'model' ? [] : resourcesForTab(visibleResources, tab).filter(item => matchesSearch(item, query));
   function go(next: string) { if (contentRef.current) contentRef.current.scrollTop = 0; setPath(next); setQuery(''); setSelected(undefined); }
   function changeTab(next: Tab) { setTab(next); setQuery(''); setSelected(undefined); }
   async function download(item: Package, overwrite = false) {
@@ -145,7 +149,7 @@ export default function App() {
     finally { setDownloading(false); }
   }
   function chooseProject(next: Project) {
-    setTab(next.engineId === 'webgal-lovelive.lovelive' ? 'model' : 'other');
+    setTab(next.engineId === 'webgal-lovelive.lovelive' && (!next.sharedKind || next.sharedKind === 'all') ? 'model' : 'other');
     setQuery(''); setSelected(undefined); setPath('');
     setProject(next); setChoosingProject(false); setNotice(''); setRedownload(undefined); setDownloadFailure(undefined);
     setInstallation(undefined);
@@ -168,15 +172,15 @@ export default function App() {
     <ProjectPicker onSelect={chooseProject} onCancel={project ? () => setChoosingProject(false) : undefined} />
   </div>;
   return <div className="app">
-    <header className="header"><div className="brand-icon">W</div><div><h1>WebGAL LoveLive</h1><span className="subtitle">包管理器</span></div><div className="project-current"><span>当前工程：{project.name}</span><button disabled={busy} onClick={() => setChoosingProject(true)}>切换工程</button><button disabled={checking || busy} onClick={() => { setCheckRevision(value => value + 1); setEngineRevision(value => value + 1); }}>刷新安装状态</button></div></header>
+    <header className="header"><div className="brand-icon">W</div><div><h1>WebGAL LoveLive</h1><span className="subtitle">包管理器</span></div><div className="project-current"><span>{project.sharedKind ? '共享资源目录' : '当前工程'}：{project.name}</span><button disabled={busy} onClick={() => setChoosingProject(true)}>切换工程</button><button disabled={checking || busy} onClick={() => { setCheckRevision(value => value + 1); setEngineRevision(value => value + 1); }}>刷新安装状态</button></div></header>
     {engineStatus?.available && <div className="engine-upgrade-banner" role="status">
       <div><span>当前工程引擎版本：{engineStatus.currentVersion}，一键包附带引擎版本：{engineStatus.latestVersion}。</span>
         {engineStatus.themeNotice && <div>{engineStatus.themeNotice}</div>}</div>
       <button disabled={busy} onClick={() => void upgrade()}>{upgrading ? '正在升级引擎…' : '点击此处升级引擎'}</button>
     </div>}
     {engineError && <div className="engine-upgrade-error" role="alert"><span>{engineError}</span><button disabled={busy} onClick={() => setEngineRevision(value => value + 1)}>重新检测</button></div>}
-    <nav className="tabs" aria-label="资源类别">{([['model', '模型'], ['motion', '动作'], ['other', '其他']] as const).filter(([key]) => project.engineId === 'webgal-lovelive.lovelive' || key === 'other').map(([key, title]) => <button key={key}
-      aria-pressed={tab === key} className={tab === key ? 'selected' : ''} onClick={() => changeTab(key)}>{title}<span>{key === 'model' ? modelPackages.length : resourcesForTab(resourcePackages, key).length}</span></button>)}</nav>
+    <nav className="tabs" aria-label="资源类别">{([['model', '模型'], ['motion', '动作'], ['other', '其他']] as const).filter(([key]) => key === 'other' || (!directKind && project.engineId === 'webgal-lovelive.lovelive')).map(([key, title]) => <button key={key}
+      aria-pressed={tab === key} className={tab === key ? 'selected' : ''} onClick={() => changeTab(key)}>{title}<span>{key === 'model' ? modelPackages.length : resourcesForTab(visibleResources, key).length}</span></button>)}</nav>
     <div className="workspace">
       {tab === 'model' && <aside className="sidebar"><div className="section-title">模型目录</div>
         <button className={`all-button ${!path ? 'active' : ''}`} onClick={() => go('')}>全部模型<span>{modelPackages.length}</span></button><ul className="tree">{root.folders.map(group => <Directory key={group.path} folder={group} current={path} go={go} />)}</ul>
@@ -206,7 +210,7 @@ export default function App() {
       <aside className="details"><div className="section-title">资源详情</div>{selected ? <>
         {'path' in selected ? <Preview key={selected.url} src={selected.preview} label={selected.description} /> : <ResourcePreview key={selected.url} item={selected} />}
         <h3>{selected.description && 'path' in selected ? selected.description : selected.name}</h3>
-        {!('path' in selected) && selected.description && <p>{selected.description}</p>}<dl><dt>资源名称</dt><dd>{selected.name}</dd><dt>安装目录（相对于 game）</dt><dd>{selected.installPath}</dd>
+        {!('path' in selected) && selected.description && <p>{selected.description}</p>}<dl><dt>资源名称</dt><dd>{selected.name}</dd><dt>{project.sharedKind ? '安装目录（相对于共享目录）' : '安装目录（相对于 game）'}</dt><dd>{directKind ? selected.installPath.split('/').slice(1).join('/') || '.' : selected.installPath}</dd>
           {'path' in selected && <>
             {selected.bytes !== undefined && <><dt>下载大小</dt><dd data-testid="download-size" title={`${selected.bytes.toLocaleString('zh-CN')} 字节`}>{formatBytes(selected.bytes)}</dd></>}
             {selected.unpackedBytes !== undefined && <><dt>解压后大小</dt><dd data-testid="unpacked-size" title={`${selected.unpackedBytes.toLocaleString('zh-CN')} 字节`}>{formatBytes(selected.unpackedBytes)}</dd></>}

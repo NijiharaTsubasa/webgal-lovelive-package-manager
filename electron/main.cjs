@@ -2,7 +2,8 @@ const { app, BrowserWindow, session, ipcMain, dialog } = require('electron');
 const path = require('node:path');
 const { findGamesRoot, listProjects, readProject, checkInstalledAt } = require('./projects.cjs');
 const { installModel } = require('./model-installer.cjs');
-const { installResource } = require('./resource-installer.cjs');
+const { installResource, roots } = require('./resource-installer.cjs');
+const { listSharedLibraries } = require('./shared-libraries.cjs');
 const { readCatalogConfig } = require('./catalog-config.cjs');
 const { fetchCatalog, parseCatalog } = require('./catalog-reader.cjs');
 const { userError } = require('./user-error.cjs');
@@ -50,11 +51,23 @@ app.whenReady().then(async () => {
     const window = BrowserWindow.fromWebContents(event.sender);
     if (!window || event.senderFrame !== window.webContents.mainFrame) throw Error('无效请求来源');
   }
+  async function verifyInstallTarget(project) {
+    if (!project.sharedKind) return;
+    const current = (await listSharedLibraries(applicationDirectory)).find(library => library.id === project.id);
+    if (!current || current.gameRoot !== project.gameRoot || current.sharedKind !== project.sharedKind) {
+      throw Error('共享资源目录已变更，请重新选择安装位置。');
+    }
+  }
   handle('projects:list', async event => {
     verifySender(event);
-    const result = await listProjects(gamesRoot ?? await findGamesRoot(applicationDirectory));
+    const [result, sharedLibraries] = await Promise.all([
+      (gamesRoot ? Promise.resolve(gamesRoot) : findGamesRoot(applicationDirectory)).then(listProjects),
+      listSharedLibraries(applicationDirectory),
+    ]);
+    for (const [id, project] of projects) if (project.sharedKind) projects.delete(id);
+    sharedLibraries.forEach(library => projects.set(library.id, library));
     result.projects.forEach(project => projects.set(project.id, project));
-    return result;
+    return { ...result, sharedLibraries };
   });
   handle('projects:browse', async event => {
     verifySender(event);
@@ -66,22 +79,28 @@ app.whenReady().then(async () => {
     projects.set(project.id, project);
     return project;
   });
-  handle('projects:installed', (event, id, entries) => {
+  handle('projects:installed', async (event, id, entries) => {
     verifySender(event);
     const project = projects.get(id);
     if (!project) throw Error('请先选择工程');
-    return checkInstalledAt(project.gameRoot, entries);
+    if (!project.sharedKind || project.sharedKind === 'all') return checkInstalledAt(project.gameRoot, entries);
+    const prefix = roots[project.sharedKind] + '/';
+    const translated = entries.filter(entry => entry.path.startsWith(prefix))
+      .map(entry => ({ ...entry, path: entry.path.slice(prefix.length) }));
+    const status = await checkInstalledAt(project.gameRoot, translated);
+    return Object.fromEntries(Object.entries(status).map(([file, value]) => [prefix + file, value]));
   });
   handle('projects:engine-status', (event, id) => {
     verifySender(event);
     const project = projects.get(id);
     if (!project) throw Error('请先选择工程');
+    if (project.sharedKind) return null;
     return engineUpgradeStatus(configDirectory, project.id);
   });
   handle('projects:upgrade-engine', async (event, id) => {
     verifySender(event);
     const project = projects.get(id);
-    if (!project) throw Error('请先选择工程');
+    if (!project || project.sharedKind) throw Error('请先选择工程');
     if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
     installing.add(id);
     try {
@@ -102,10 +121,12 @@ app.whenReady().then(async () => {
     verifySender(event);
     const project = projects.get(id), model = models.get(modelId);
     if (!project || !model) throw Error('请先选择工程和模型');
+    if (project.sharedKind && project.sharedKind !== 'all') throw Error('此共享资源目录不支持模型');
     if (project.engineId !== 'webgal-lovelive.lovelive') throw Error('当前引擎不支持此模型');
     if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
     installing.add(id);
     try {
+      await verifyInstallTarget(project);
       await installModel(project.gameRoot, model, overwrite === true, progress => {
         if (!event.sender.isDestroyed()) event.sender.send('models:progress', { ...progress, projectId: id, path: model.path });
       });
@@ -123,13 +144,16 @@ app.whenReady().then(async () => {
     verifySender(event);
     const project = projects.get(id), resource = resources.get(url);
     if (!project || !resource) throw Error('请先选择工程和资源');
+    const direct = !!project.sharedKind && project.sharedKind !== 'all';
+    if (direct && project.sharedKind !== resource.type) throw Error('此共享资源目录不支持此类资源');
     if (project.engineId !== 'webgal-lovelive.lovelive' && ['motion', 'live2d_mot_exp'].includes(resource.type)) throw Error('当前引擎不支持此资源');
     if (installing.has(id)) throw Error('当前工程正在安装或升级，请完成后重试。');
     installing.add(id);
     try {
+      await verifyInstallTarget(project);
       await installResource(project.gameRoot, resource, overwrite === true, progress => {
         if (!event.sender.isDestroyed()) event.sender.send('models:progress', { ...progress, projectId: id, path: url });
-      });
+      }, direct);
     } finally { installing.delete(id); }
   });
   session.defaultSession.setPermissionRequestHandler((contents, permission, callback) => callback(false));
