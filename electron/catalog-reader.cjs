@@ -1,5 +1,5 @@
 const { httpUrl } = require('./catalog-config.cjs');
-const { modelPath } = require('./model-path.cjs');
+const { modelPath, modelInstallPath } = require('./model-path.cjs');
 const { roots } = require('./resource-installer.cjs');
 
 async function fetchCatalog(url, label) {
@@ -26,7 +26,7 @@ function parseCatalog(catalog, base, kind) {
     }
     if (kind === 'model') {
       try { modelPath(item.path); } catch { fail('path 模型目录无效'); }
-      if (item.installPath !== `3d/figure/${item.path}`) fail('installPath 与模型目录不一致');
+      try { modelInstallPath(item.installPath); } catch { fail('installPath 必须是 3d/figure 内的有效路径'); }
       for (const field of ['bytes', 'unpackedBytes']) {
         if (!Number.isSafeInteger(item[field]) || item[field] <= 0) fail(`${field} 必须是正整数`);
       }

@@ -79,7 +79,7 @@ npm run pack:win
 }
 ```
 
-`path` 是包内从团体名开始的模型目录，用于生成浏览目录；`url` 和 `preview` 支持完整 URL 或相对于对应清单 URL 的地址。`bytes` 是 ZIP 大小，`unpackedBytes` 是解压后文件总大小，`sha256` 用于下载完整性校验。可选字段 `pinOrder` 为正整数，用于同一目录内置顶，数字小的在前；未指定的模型按路径排序。文件夹使用排序后内部首个模型的预览图。
+`path` 用于生成浏览目录，可独立于安装路径设置。`url` 和 `preview` 支持完整 URL 或相对于对应清单 URL 的地址。`bytes` 是 ZIP 大小，`unpackedBytes` 是解压后文件总大小，`sha256` 用于下载完整性校验。可选字段 `pinOrder` 为正整数，用于同一目录内置顶，数字小的在前；未指定的模型按路径排序。文件夹使用排序后内部首个模型的预览图。
 
 动作与其他资源条目：
 
@@ -108,7 +108,7 @@ npm run pack:win
 | background | background |
 | bgm | bgm |
 
-路径均相对于游戏 `game` 目录。模型的 `installPath` 填写其 `config.json` 所在目录，用于展示及安装检测。
+模型 ZIP 解压到游戏 `game/3d/figure`，保留包内目录层级。重新下载会覆盖包内同名文件。清单的 `installPath` 相对于游戏 `game` 目录，用于展示安装位置和检测是否已安装。
 
 手动维护的资源清单有两个独立字段：`installPath` 是展示给用户的安装目录；`checkPath` 是实际检测的目录或文件。例如音乐包可以显示 `bgm/exchange`，检测 `bgm/exchange/scene1.aac`。
 

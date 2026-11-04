@@ -6,9 +6,10 @@ const os = require('node:os');
 const { createServer } = require('node:http');
 const { createPacked, createZip } = require('./fixtures.cjs');
 const { createPackageServer } = require('./package-server.cjs');
-const { installModel, extractArchive, downloadArchive } = require('../electron/model-installer.cjs');
+const { installModel, downloadArchive } = require('../electron/model-installer.cjs');
 const { installResource } = require('../electron/resource-installer.cjs');
 const { checkInstalledAt } = require('../electron/projects.cjs');
+const { parseCatalog } = require('../electron/catalog-reader.cjs');
 
 test('band and monthly model paths install into their final package directory', async () => {
   const temporary = await fs.mkdtemp(path.join(os.tmpdir(), 'package-manager-band-'));
@@ -69,28 +70,28 @@ test('real HTTP catalog, download, verification, extraction and confirmed replac
     server = await createPackageServer(packed);
     const response = await fetch(`${server.origin}models.json`);
     assert.equal(response.status, 200);
-    const [entry] = await response.json();
-    entry.url = new URL(entry.url, server.origin).href;
+    const [published] = await response.json();
+    const [entry] = parseCatalog([{
+      ...published, path: '精选/冬服/model', installPath: '3d/figure/custom-model',
+    }], response.url, 'model').values();
     assert.equal(entry.description, '冬服');
     const states = [];
     await installModel(game, entry, false, update => states.push(update.state));
-    assert.equal(await fs.readFile(path.join(game, entry.installPath, 'model.glb'), 'utf8'), 'test-model-content');
+    const modelFile = path.join(game, published.installPath, 'model.glb');
+    assert.equal(await fs.readFile(modelFile, 'utf8'), 'test-model-content');
+    await assert.rejects(fs.access(path.join(game, entry.installPath)), { code: 'ENOENT' });
     assert.ok(states.includes('downloading')); assert.ok(states.includes('extracting')); assert.equal(states.at(-1), 'installed');
     await assert.rejects(installModel(game, entry, false), /请确认/);
-    await fs.writeFile(path.join(game, entry.installPath, 'model.glb'), 'old-content');
+    await fs.writeFile(modelFile, 'old-content');
     await assert.rejects(installModel(game, { ...entry, sha256: '0'.repeat(64) }, true), /完整性/);
-    assert.equal(await fs.readFile(path.join(game, entry.installPath, 'model.glb'), 'utf8'), 'old-content');
+    assert.equal(await fs.readFile(modelFile, 'utf8'), 'old-content');
     await assert.rejects(installModel(game, { ...entry, url: `${server.origin}missing.zip` }, true), /HTTP 404/);
     await assert.rejects(installModel(game, { ...entry, unpackedBytes: 1 }, true), /解压大小/);
-    assert.equal(await fs.readFile(path.join(game, entry.installPath, 'model.glb'), 'utf8'), 'old-content');
+    assert.equal(await fs.readFile(modelFile, 'utf8'), 'old-content');
     await installModel(game, entry, true);
-    assert.equal(await fs.readFile(path.join(game, entry.installPath, 'model.glb'), 'utf8'), 'test-model-content');
-    assert.deepEqual((await fs.readdir(path.dirname(path.join(game, entry.installPath)))).filter(name => name.startsWith('.package-install-')), []);
+    assert.equal(await fs.readFile(modelFile, 'utf8'), 'test-model-content');
+    assert.deepEqual((await fs.readdir(path.join(game, '3d/figure'))).filter(name => name.startsWith('.package-install-')), []);
     assert.equal((await fetch(`${server.origin}%2e%2e%2fsecret.zip`)).status, 404);
-    const malicious = path.join(temporary, 'wrong.zip'), destination = path.join(temporary, 'extract');
-    await fs.mkdir(destination);
-    await createZip(malicious, [['somewhere/else.txt', 'bad']]);
-    await assert.rejects(extractArchive(malicious, destination, entry), /超出模型目录/);
     const outside = path.join(temporary, 'outside');
     await fs.mkdir(outside);
     const linkedGame = path.join(temporary, 'linked-game');
@@ -122,10 +123,6 @@ test('invalid addresses, broken ZIP and missing package contents preserve instal
     await assert.rejects(installResource(game, { ...entry, url: `${server.origin}others/missing.zip` }, true), /资源包缺少.*bgm\/test/);
     assert.equal(await fs.readFile(existing, 'utf8'), 'keep');
     assert.deepEqual((await fs.readdir(path.join(game, 'bgm'))).filter(name => name.startsWith('.package-install-')), []);
-    const modelZip = path.join(temporary, 'model.zip'), extract = path.join(temporary, 'extract');
-    await createZip(modelZip, [['group/person/model/model.glb', 'data']]);
-    await fs.mkdir(extract);
-    await assert.rejects(extractArchive(modelZip, extract, { path: 'group/person/model', unpackedBytes: 4 }), /模型包缺少 config.json/);
   } finally { await server?.close(); await fs.rm(temporary, { recursive: true, force: true }); }
 });
 
