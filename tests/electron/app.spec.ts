@@ -148,9 +148,12 @@ test('older LoveLive project upgrades from latest bundled engine through the ban
   for (const [root, version, filename] of [[project, '0.1.0-beta.1', 'old'], [bundled, '0.2.0', 'new']]) {
     await mkdir(join(root, 'assets'), { recursive: true });
     await mkdir(join(root, 'game/3d/runtime'), { recursive: true });
+    await mkdir(join(root, 'lib'), { recursive: true });
     await writeFile(join(root, 'assets', `${filename}.js`), filename);
     await writeFile(join(root, 'game/3d/runtime', `${filename}.js`), filename);
     await writeFile(join(root, 'index.html'), filename);
+    await writeFile(join(root, 'lib/live2d.min.js'), `${filename} Cubism 2`);
+    await writeFile(join(root, 'lib/live2dcubismcore.min.js'), `${filename} Cubism 4`);
     await writeFile(join(root, 'webgal-engine.json'), JSON.stringify({ id: 'webgal-lovelive.lovelive', version }));
   }
   await writeFile(join(bundled, 'assets/webgal-engine.json'), 'not an engine root');
@@ -178,6 +181,8 @@ test('older LoveLive project upgrades from latest bundled engine through the ban
     expect(JSON.parse(await readFile(join(project, 'webgal-engine.json'), 'utf8')).version).toBe('0.2.0');
     expect(await readFile(join(project, 'assets/new.js'), 'utf8')).toBe('new');
     expect(await readFile(join(project, 'game/3d/runtime/new.js'), 'utf8')).toBe('new');
+    expect(await readFile(join(project, 'lib/live2d.min.js'), 'utf8')).toBe('new Cubism 2');
+    expect(await readFile(join(project, 'lib/live2dcubismcore.min.js'), 'utf8')).toBe('new Cubism 4');
     expect(await readFile(join(project, 'game/template/UI/new.scss'), 'utf8')).toBe('new theme');
     await expect(readFile(join(project, 'game/template/UI/old.scss'))).rejects.toThrow();
     const duplicate = join(gamesRoot, 'data/templates/duplicate');

@@ -8,9 +8,12 @@ const { compareVersions, latestEngine, engineUpgradeStatus, upgradeEngine } = re
 async function engine(root, version, id = 'webgal-lovelive.lovelive', content = 'new') {
   await fs.mkdir(path.join(root, 'assets'), { recursive: true });
   await fs.mkdir(path.join(root, 'game/3d/runtime'), { recursive: true });
+  await fs.mkdir(path.join(root, 'lib'), { recursive: true });
   await fs.writeFile(path.join(root, 'assets', `${content}.js`), content);
   await fs.writeFile(path.join(root, 'index.html'), content);
   await fs.writeFile(path.join(root, 'game/3d/runtime', `${content}.js`), content);
+  await fs.writeFile(path.join(root, 'lib/live2d.min.js'), `${content} Cubism 2`);
+  await fs.writeFile(path.join(root, 'lib/live2dcubismcore.min.js'), `${content} Cubism 4`);
   await fs.writeFile(path.join(root, 'webgal-engine.json'), JSON.stringify({ id, version, webgalVersion: '4.6.4' }));
 }
 async function setup(run) {
@@ -106,7 +109,11 @@ test('engine upgrade replaces complete directories and version file, preserving 
   const source = path.join(engines, 'latest');
   await engine(source, '0.2.0');
   await engine(project, '0.1.0', undefined, 'old');
-  for (const relative of ['game/scene/start.txt', 'game/3d/figure/model/config.json', 'game/3d/motion/test.motionbin', 'game/config.txt', 'manifest.json']) {
+  await fs.mkdir(path.join(source, 'lib/extra'));
+  await fs.writeFile(path.join(source, 'lib/extra/new.js'), 'new library');
+  await fs.writeFile(path.join(project, 'lib/obsolete.js'), 'old library');
+  const preserved = ['game/scene/start.txt', 'game/3d/figure/model/config.json', 'game/3d/motion/test.motionbin', 'game/config.txt', 'manifest.json'];
+  for (const relative of preserved) {
     await fs.mkdir(path.dirname(path.join(project, relative)), { recursive: true });
     await fs.writeFile(path.join(project, relative), 'keep');
   }
@@ -116,7 +123,11 @@ test('engine upgrade replaces complete directories and version file, preserving 
   assert.deepEqual(await fs.readdir(path.join(project, 'game/3d/runtime')), ['new.js']);
   assert.equal(await fs.readFile(path.join(project, 'index.html'), 'utf8'), 'new');
   assert.deepEqual(await fs.readFile(path.join(project, 'webgal-engine.json')), await fs.readFile(path.join(source, 'webgal-engine.json')));
-  for (const relative of ['game/scene/start.txt', 'game/3d/figure/model/config.json', 'game/3d/motion/test.motionbin', 'game/config.txt', 'manifest.json']) {
+  assert.equal(await fs.readFile(path.join(project, 'lib/live2d.min.js'), 'utf8'), 'new Cubism 2');
+  assert.equal(await fs.readFile(path.join(project, 'lib/live2dcubismcore.min.js'), 'utf8'), 'new Cubism 4');
+  assert.equal(await fs.readFile(path.join(project, 'lib/extra/new.js'), 'utf8'), 'new library');
+  await assert.rejects(fs.stat(path.join(project, 'lib/obsolete.js')), { code: 'ENOENT' });
+  for (const relative of preserved) {
     assert.equal(await fs.readFile(path.join(project, relative), 'utf8'), 'keep');
   }
   assert.equal((await engineUpgradeStatus(root, project)).available, false);
@@ -132,7 +143,7 @@ test('missing source fails before replacement, and interrupted replacement resto
   await assert.rejects(upgradeEngine(root, project), /ENOENT/);
   assert.equal(await fs.readFile(path.join(project, 'assets/old.js'), 'utf8'), 'old');
   await fs.writeFile(path.join(source, 'index.html'), 'new');
-  for (const failedFile of ['index.html', 'webgal-engine.json']) {
+  for (const failedFile of ['index.html', 'lib', 'webgal-engine.json']) {
     const operations = { ...fs, rename: async (from, to) => {
       if (from.includes(`${path.sep}staged${path.sep}`) && to === path.join(project, failedFile)) {
         const error = Error('locked'); error.code = 'EBUSY'; throw error;
@@ -143,6 +154,8 @@ test('missing source fails before replacement, and interrupted replacement resto
     assert.deepEqual(await fs.readdir(path.join(project, 'assets')), ['old.js']);
     assert.deepEqual(await fs.readdir(path.join(project, 'game/3d/runtime')), ['old.js']);
     assert.equal(await fs.readFile(path.join(project, 'index.html'), 'utf8'), 'old');
+    assert.equal(await fs.readFile(path.join(project, 'lib/live2d.min.js'), 'utf8'), 'old Cubism 2');
+    assert.equal(await fs.readFile(path.join(project, 'lib/live2dcubismcore.min.js'), 'utf8'), 'old Cubism 4');
     assert.equal(JSON.parse(await fs.readFile(path.join(project, 'webgal-engine.json'), 'utf8')).version, '0.1.0');
     assert.equal((await fs.readdir(project)).some(name => name.startsWith('.engine-upgrade-')), false);
   }

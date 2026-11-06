@@ -4,7 +4,8 @@ const { readProject } = require('./projects.cjs');
 const { userError } = require('./user-error.cjs');
 
 const engineId = 'webgal-lovelive.lovelive';
-const replacements = ['assets', 'index.html', 'game/3d/runtime', 'webgal-engine.json'];
+const replacementDirectories = ['assets', 'game/3d/runtime', 'lib'];
+const replacements = [...replacementDirectories, 'index.html', 'webgal-engine.json'];
 const llasThemeName = 'LoveLive! All Stars Theme';
 
 async function themeUpgrade(applicationDirectory, projectRoot) {
@@ -122,7 +123,7 @@ async function upgradeEngine(applicationDirectory, projectRoot, operations = fs)
   if (overlaps(source, target)) throw Error('工程与附带引擎目录不能重叠。');
   const theme = await themeUpgrade(applicationDirectory, target);
   const plan = replacements.map(relative => ({ relative, root: source, sourceRelative: relative,
-    directory: relative === 'assets' || relative === 'game/3d/runtime' }));
+    directory: replacementDirectories.includes(relative) }));
   if (theme.root) {
     const themeRoot = await fs.realpath(theme.root);
     if (overlaps(themeRoot, target)) throw Error('工程与附带主题目录不能重叠。');
