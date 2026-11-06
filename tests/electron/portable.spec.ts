@@ -56,29 +56,62 @@ test('packaged portable executable reads games and configuration beside the oute
     });
     if ('error' in result) expect(result.error).not.toContain('找不到下载源配置文件');
     await expect(page.getByRole('button', { name: 'WebVideo+共享资源目录未配置' })).toBeDisabled();
-    const state = join(directory, 'custom-state'), shared = join(directory, 'shared'), backgrounds = join(directory, 'backdrops');
+    const state = join(directory, 'custom-state');
+    const sharedPath = 'data/derivative-engines/LoveLive/game';
+    const mygoPath = 'data/derivative-engines/MyGO/game';
+    const shared = join(directory, sharedPath), backgrounds = join(directory, 'backdrops');
     await mkdir(join(state, 'user-data'), { recursive: true });
-    await mkdir(shared);
+    await mkdir(shared, { recursive: true });
+    await mkdir(join(directory, mygoPath), { recursive: true });
+    await mkdir(join(directory, 'custom-library'));
+    await writeFile(join(shared, '../webgal-engine.json'), JSON.stringify({ id: 'webgal-lovelive.lovelive' }));
+    await writeFile(join(directory, mygoPath, '../webgal-engine.json'), JSON.stringify({ id: 'webgal-mygo.mygo' }));
     await mkdir(backgrounds);
     const config = join(state, 'config.json');
     await writeFile(config, JSON.stringify({ terreDir: directory }));
     await writeFile(join(directory, 'webvideo-plus.json'), JSON.stringify({ config }));
     await writeFile(join(state, 'user-data', 'shared-assets.json'), JSON.stringify({ libraries: [
       { id: 'general', name: '全类型库', kind: 'all', root: shared },
+      { id: 'mygo', name: '引擎资源 · MyGO', kind: 'all', root: join(directory, mygoPath) },
       { id: 'backgrounds', name: '背景库', kind: 'background', root: backgrounds },
     ] }));
-    const project = join(portableGames, '测试工程');
-    await mkdir(join(project, 'game'), { recursive: true });
-    await writeFile(join(project, 'webgal-engine.json'), JSON.stringify({ id: 'webgal-lovelive.lovelive' }));
+    const ordinary = await page.evaluate(() => window.packageManager!.listProjects());
+    expect(ordinary.sharedLibraries.map(({ gameRoot, engineId }) => [gameRoot, engineId])).toEqual([
+      [shared, 'webgal-lovelive.lovelive'], [join(directory, mygoPath), 'webgal-mygo.mygo'], [backgrounds, 'webgal-lovelive.lovelive'],
+    ]);
+    const portableState = 'video-export-data/instance';
+    await mkdir(join(directory, portableState, 'user-data'), { recursive: true });
+    await writeFile(join(directory, portableState, 'config.json'), JSON.stringify({ portable: true, terreDir: '.' }));
+    await writeFile(join(directory, 'webvideo-plus.json'), JSON.stringify({ portable: true, config: `${portableState}/config.json` }));
+    await writeFile(join(directory, portableState, 'user-data/shared-assets.json'), JSON.stringify({ libraries: [
+      { id: 'general', name: '引擎资源 · WebGAL LoveLive', kind: 'all', root: sharedPath },
+      { id: 'mygo', name: '引擎资源 · MyGO', kind: 'all', root: mygoPath },
+      { id: 'custom', name: '自建共享库', kind: 'all', root: 'custom-library' },
+      { id: 'backgrounds', name: '背景库', kind: 'background', root: backgrounds },
+    ] }));
     await page.getByRole('button', { name: '重新扫描' }).click();
-    await expect(page.locator('.project-list button').first()).toContainText('全类型库');
-    await page.getByRole('button', { name: /全类型库/ }).click();
+    await expect(page.locator('.project-list button').first()).toContainText('引擎资源 · WebGAL LoveLive');
+    expect(await page.evaluate(async () => (await window.packageManager!.listProjects()).projects)).toEqual([]);
+    await page.getByRole('button', { name: /引擎资源 · WebGAL LoveLive/ }).click();
     const modelCatalog = JSON.parse(await readFile(join(packed, 'models.json'), 'utf8'));
     await page.evaluate(async id => {
       await window.packageManager!.listModels();
       await window.packageManager!.installModel('webvideo-shared:general', id, false);
     }, model.path);
     expect(await readFile(join(shared, modelCatalog[0].installPath, 'model.glb'), 'utf8')).toBe('test-model-content');
+    await page.getByRole('button', { name: '切换工程' }).click();
+    await page.getByRole('button', { name: /引擎资源 · MyGO/ }).click();
+    const tabs = page.getByRole('navigation', { name: '资源类别' }).getByRole('button');
+    await expect(tabs).toHaveCount(1);
+    await expect(tabs.first()).toHaveText(/^其他/);
+    await expect(page.getByRole('note')).toContainText('当前共享目录的引擎为：webgal-mygo.mygo');
+    await expect(page.evaluate(async id => {
+      await window.packageManager!.listModels();
+      return window.packageManager!.installModel('webvideo-shared:mygo', id, false);
+    }, model.path)).rejects.toThrow('当前引擎不支持此模型');
+    await page.getByRole('button', { name: '切换工程' }).click();
+    await page.getByRole('button', { name: /自建共享库/ }).click();
+    await expect(tabs).toHaveCount(3);
     await page.getByRole('button', { name: '切换工程' }).click();
     await page.getByRole('button', { name: /背景库/ }).click();
     await expect(page.getByRole('button', { name: /^模型/ })).toHaveCount(0);

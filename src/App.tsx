@@ -194,7 +194,7 @@ export default function App() {
         <div className="content-heading"><div><h2>{tab === 'model' ? folder.name : tab === 'motion' ? '动作与表情' : '立绘、背景与音乐'}</h2></div>
           <label className="search"><span>⌕</span><input aria-label="搜索资源" placeholder={tab === 'model' ? '搜索当前目录的角色、服装…' : '搜索名称、说明…'} value={query} onChange={event => setQuery(event.target.value)} />{query && <button aria-label="清除搜索" onClick={() => setQuery('')}>×</button>}</label></div>
         {project.engineId !== 'webgal-lovelive.lovelive' && <div className="motion-notice" role="note">
-          <p>当前工程的引擎为：{project.engineId}，只显示引擎支持的内容</p>
+          <p>{project.sharedKind ? '当前共享目录的引擎为' : '当前工程的引擎为'}：{project.engineId}，只显示引擎支持的内容</p>
         </div>}
         {tab === 'motion' && <div className="motion-notice" role="note">
           <p>本页面下载的表情／动作默认仅在 3D 模型的表情／动作列表中可见，即使显示的类型是“Live2D 动作与表情”也是如此。如需在 Live2D 模型中使用，您需要手动修改 <code>model.json</code>，加入对应的表情和动作。</p>

@@ -54,7 +54,7 @@ app.whenReady().then(async () => {
   async function verifyInstallTarget(project) {
     if (!project.sharedKind) return;
     const current = (await listSharedLibraries(applicationDirectory)).find(library => library.id === project.id);
-    if (!current || current.gameRoot !== project.gameRoot || current.sharedKind !== project.sharedKind) {
+    if (!current || current.gameRoot !== project.gameRoot || current.sharedKind !== project.sharedKind || current.engineId !== project.engineId) {
       throw Error('共享资源目录已变更，请重新选择安装位置。');
     }
   }
